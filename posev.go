@@ -3,6 +3,7 @@ package posev
 import (
 	"github.com/mitsuse/matrix-go"
 	"github.com/mitsuse/matrix-go/dense"
+	//~ "log"
 	"math"
 	"math/rand"
 )
@@ -68,11 +69,10 @@ func DeltaEigen(e float64, v, a matrix.Matrix) float64 {
 	return VecNorm(z)
 }
 
-func PowerTopSingular(a matrix.Matrix, maxIters int, eps float64) (u, v matrix.Matrix, s float64) {
+func PowerTopSingular(a, r matrix.Matrix, maxIters int, eps float64) (u, v, w matrix.Matrix, s float64) {
 	n := a.Columns()
-	r := randUnitVec(n)
-
 	b := a.Transpose()
+
 	for i := 0; i < maxIters; i++ {
 		u = VecNormalize(a.Multiply(r))
 		v = b.Multiply(u)
@@ -86,28 +86,57 @@ func PowerTopSingular(a matrix.Matrix, maxIters int, eps float64) (u, v matrix.M
 				d = c
 			}
 		}
+		if d > 10*eps {
+			w = r.Subtract(v)
+		}
 		if d < eps {
 			return
 		}
 		r = v
 	}
-	return nil, nil, 0
+	return nil, nil, nil, 0
+}
+
+func HotellingDeflation(a, l, r matrix.Matrix, s float64) (b matrix.Matrix) {
+	b = dense.Zeros(a.Shape())
+	for i := 0; i < l.Rows(); i++ {
+		for j := 0; j < r.Rows(); j++ {
+			b.Update(i, j, a.Get(i, j)-s*l.Get(i, 0)*r.Get(j, 0))
+		}
+	}
+	return
+}
+
+func PowerTopKSingular(a matrix.Matrix, k, maxIters int, eps float64) (u, v matrix.Matrix, s []float64) {
+	tol := 0.000000001
+
+	m := a.Rows()
+	n := a.Columns()
+	u = dense.Zeros(m, k)
+	v = dense.Zeros(n, k)
+	s = make([]float64, k)
+
+	r := randUnitVec(n)
+	for i := 0; i < k; i++ {
+		ui, vi, w, si := PowerTopSingular(a, r, maxIters, eps)
+		if si/(s[0]+tol) < tol {
+			// Singluar values are too small
+			return
+		}
+		s[i] = si
+		for j := 0; j < m; j++ {
+			u.Update(j, i, ui.Get(j, 0))
+		}
+		for j := 0; j < n; j++ {
+			v.Update(j, i, vi.Get(j, 0))
+		}
+		a = HotellingDeflation(a, ui, vi, si)
+		r = VecNormalize(w)
+	}
+	return
 }
 
 func DeltaSingular(s float64, u, v, a matrix.Matrix) float64 {
 	z := a.Multiply(v).Subtract(ScalarMult(u, s))
 	return VecNorm(z)
-}
-
-func subSingular(vec *[]float64, sv matrix.Matrix) {
-	if sv == nil || len(*vec) == 0 {
-		return
-	}
-	for i := range *vec {
-		w := float64(0)
-		for j, v := range *vec {
-			w += sv.Get(j, 0) * v
-		}
-		(*vec)[i] -= sv.Get(i, 0) * w
-	}
 }
