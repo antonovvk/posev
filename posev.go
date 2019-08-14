@@ -131,7 +131,11 @@ func PowerTopKSingular(a matrix.Matrix, k, maxIters int, eps float64) (u, v matr
 			v.Update(j, i, vi.Get(j, 0))
 		}
 		a = HotellingDeflation(a, ui, vi, si)
-		r = VecNormalize(w)
+		if w == nil {
+			r = randUnitVec(n)
+		} else {
+			r = VecNormalize(w)
+		}
 	}
 	return
 }
