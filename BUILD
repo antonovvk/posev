@@ -17,5 +17,5 @@ go_test(
     name = "go_default_test",
     srcs = ["posev_test.go"],
     importpath = "github.com/antonovvk/posev",
-    library = ":go_default_library",
+    embed = [":go_default_library"],
 )
